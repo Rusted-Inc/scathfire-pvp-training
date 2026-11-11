@@ -30,7 +30,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p download
-          gh release download -R AndrewCTF/Carpet-PvP --pattern 'carpet-pvp-26.3-[0-9]*.jar' -D download || echo "Carpet PvP download failed; get it from its Modrinth page"
+          gh release view -R AndrewCTF/Carpet-PvP --json tagName,assets -q '.tagName, (.assets[].name)' || true
+          gh release download -R AndrewCTF/Carpet-PvP --pattern 'carpet-pvp-26.3*.jar' -D download || echo "Carpet PvP download failed; get it from its Modrinth page"
+          rm -f download/*-sources.jar download/*paper*.jar
           ls -la download || true
 
       - name: Put the install folder together
