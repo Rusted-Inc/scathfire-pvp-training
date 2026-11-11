@@ -22,6 +22,8 @@ public final class Config {
 	public String openRouterKey = "";
 	/** The OpenRouter model the coach asks. Free models end in :free. */
 	public String coachModel = "meta-llama/llama-3.3-70b-instruct:free";
+	/** Best Aim Trainer hits for each speed. */
+	public java.util.Map<String, Integer> aimBest = new java.util.HashMap<>();
 
 	private static Path file() {
 		return FabricLoader.getInstance().getConfigDir().resolve("scathfirepvp.json");

@@ -6,6 +6,8 @@ import org.lwjgl.sdl.SDLScancode;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.TitleScreen;
+import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
+import net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements;
 import net.minecraft.resources.Identifier;
 
 import net.fabricmc.api.ClientModInitializer;
@@ -16,7 +18,9 @@ import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
 import net.fabricmc.fabric.api.client.screen.v1.Screens;
 
+import com.scathfire.pvptraining.AimTrainer;
 import com.scathfire.pvptraining.ScathfirePvp;
+import com.scathfire.pvptraining.client.screens.AimResultsScreen;
 import com.scathfire.pvptraining.client.screens.EnteringScreen;
 import com.scathfire.pvptraining.client.screens.IntroScreen;
 import com.scathfire.pvptraining.client.screens.ResultsScreen;
@@ -63,17 +67,50 @@ public class ScathfirePvpClient implements ClientModInitializer {
 		});
 
 		ClientReceiveMessageEvents.ALLOW_GAME.register((message, overlay) -> {
-			if (ScathfirePvp.MATCH_OVER.equals(message.getString())) {
+			String text = message.getString();
+			if (ScathfirePvp.MATCH_OVER.equals(text)) {
 				resultsDelay = 40;
+				return false;
+			}
+			if (text.startsWith(AimTrainer.MARK)) {
+				aimMessage(text.substring(AimTrainer.MARK.length()));
 				return false;
 			}
 			return true;
 		});
 
+		HudElementRegistry.attachElementAfter(VanillaHudElements.MISC_OVERLAYS,
+			Identifier.fromNamespaceAndPath(ScathfirePvp.MOD_ID, "aim_trainer"), AimHud::draw);
+
 		ClientTickEvents.END_CLIENT_TICK.register(ScathfirePvpClient::tick);
 	}
 
+	/** Reads the Aim Trainer's hidden messages: start, hit, end and cancel. */
+	private static void aimMessage(String body) {
+		String[] parts = body.split(":");
+		switch (parts[0]) {
+			case "start" -> AimHud.start(parts[1], Integer.parseInt(parts[2]));
+			case "hit" -> AimHud.hit(Integer.parseInt(parts[1]));
+			case "cancel" -> AimHud.cancel();
+			case "end" -> {
+				int[] score = AimHud.end(Integer.parseInt(parts[1]));
+				String speed = parts[2];
+				Config cfg = Config.get();
+				int old = cfg.aimBest.getOrDefault(speed, 0);
+				boolean newBest = score[0] > old;
+				if (newBest) {
+					cfg.aimBest.put(speed, score[0]);
+					cfg.save();
+				}
+				int best = Math.max(old, score[0]);
+				runAfterTick(() -> Minecraft.getInstance().gui.setScreen(new AimResultsScreen(null, speed, score[0], score[1], best, newBest)));
+			}
+			default -> { }
+		}
+	}
+
 	private static void tick(Minecraft client) {
+		AimHud.clientTick(client);
 		if (afterTick != null) {
 			Runnable task = afterTick;
 			afterTick = null;

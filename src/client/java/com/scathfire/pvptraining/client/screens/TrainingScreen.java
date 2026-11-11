@@ -40,7 +40,9 @@ public class TrainingScreen extends BaseScreen {
 
 		int by = height - 28;
 		addRenderableWidget(new SButton(x, by, 70, 20, "Close", SButton.Style.NORMAL, 600, this::onClose));
-		addRenderableWidget(new SButton(right() - 190, by, 90, 20, "Stop fight", SButton.Style.NORMAL, 650,
+		addRenderableWidget(new SButton(x + 76, by, 80, 20, "Go to hub", SButton.Style.NORMAL, 620,
+			() -> runAndClose("spt go hub")));
+		addRenderableWidget(new SButton(right() - 190, by, 90, 20, "Stop", SButton.Style.NORMAL, 650,
 			() -> runAndClose("spt stop")));
 		addRenderableWidget(new SButton(right() - 92, by, 92, 20, "Coach tips", SButton.Style.HERO, 700,
 			() -> go(new CoachScreen(this))));

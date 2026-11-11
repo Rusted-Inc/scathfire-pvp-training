@@ -19,13 +19,15 @@ public class DrillsScreen extends BaseScreen {
 		int x = left();
 		int w = right() - x;
 		int gap = 8;
-		int n = Modes.DRILLS.size();
+		int n = Modes.DRILLS.size() + 1;
 		int cardW = (w - gap * (n - 1)) / n;
 		int cardH = Math.min(100, height - contentTop() - 60);
 		int y = contentTop() + 12;
-		for (int i = 0; i < n; i++) {
+		addRenderableWidget(new SButton(x, y, cardW, cardH, "Aim Trainer", SButton.Style.SELECTED, 250,
+			() -> go(new AimScreen(this))).card("Hit a bot that strafes and jumps like a player. 60 seconds.", "new"));
+		for (int i = 0; i < Modes.DRILLS.size(); i++) {
 			Modes.Drill drill = Modes.DRILLS.get(i);
-			addRenderableWidget(new SButton(x + i * (cardW + gap), y, cardW, cardH, drill.name(), SButton.Style.NORMAL, 250 + i * 80L,
+			addRenderableWidget(new SButton(x + (i + 1) * (cardW + gap), y, cardW, cardH, drill.name(), SButton.Style.NORMAL, 330 + i * 80L,
 				() -> runAndClose("spt drill " + drill.id())).card(drill.about(), "start"));
 		}
 		int by = height - 28;

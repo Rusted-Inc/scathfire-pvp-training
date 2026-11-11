@@ -3,7 +3,9 @@ package com.scathfire.pvptraining;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.Map;
 import java.util.UUID;
@@ -26,6 +28,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.Relative;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.storage.LevelResource;
@@ -33,6 +36,7 @@ import net.minecraft.world.level.storage.LevelResource;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.fabricmc.loader.api.FabricLoader;
 
@@ -41,7 +45,6 @@ public class ScathfirePvp implements ModInitializer {
 	public static final String PVP_WORLD_NAME = "Scathfire PvP World";
 	public static final Logger LOGGER = LoggerFactory.getLogger("Scathfire's PvP Training");
 
-	private static final String HUB_MARKER = "scathfirepvp-hub.txt";
 
 	/** The fight each real player is in, by player id. */
 	private static final Map<UUID, Stats.Session> SESSIONS = new HashMap<>();
@@ -51,13 +54,60 @@ public class ScathfirePvp implements ModInitializer {
 	public static final String MATCH_OVER = "[scathfirepvp:match-over]";
 	private static final String DUMMY = "Dummy";
 
+	private record Later(int atTick, Runnable task) {}
+	private static final List<Later> LATER = new ArrayList<>();
+	private static int serverTicks;
+
+	/** Runs a task a few ticks from now, e.g. after a teleport has settled. */
+	public static void later(int ticks, Runnable task) {
+		LATER.add(new Later(serverTicks + ticks, task));
+	}
+
+	private static void tick(MinecraftServer server) {
+		serverTicks++;
+		WorldBuilder.tick(server);
+		AimTrainer.tick(server);
+		if (!LATER.isEmpty()) {
+			List<Later> due = new ArrayList<>();
+			LATER.removeIf(l -> {
+				if (l.atTick() <= serverTicks) {
+					due.add(l);
+					return true;
+				}
+				return false;
+			});
+			for (Later l : due) l.task().run();
+		}
+	}
+
+	/** Puts a player at a spot, facing a direction (180 is north). */
+	public static void teleport(ServerPlayer player, double x, double y, double z, float yaw) {
+		if (player.level() instanceof ServerLevel level) {
+			player.teleportTo(level, x, y, z, java.util.Set.<Relative>of(), yaw, 10f, true);
+		}
+	}
+
+	/** In the PvP World, sends the player to a zone's spawn pad. Returns true if it moved them. */
+	private static boolean sendToZone(MinecraftServer server, ServerPlayer player, Zones.Zone zone) {
+		if (zone == null || !isPvpWorld(server) || !WorldBuilder.built(server)) return false;
+		boolean inside = player.getX() >= zone.minX() && player.getX() <= zone.maxX() + 1
+			&& player.getZ() >= zone.minZ() && player.getZ() <= zone.maxZ() + 1;
+		teleport(player, zone.x() + 0.5, Zones.FLOOR + 1, zone.padZ() + 0.5, 180f);
+		return !inside;
+	}
+
 	@Override
 	public void onInitialize() {
 		CommandRegistrationCallback.EVENT.register((dispatcher, buildContext, selection) -> registerCommands(dispatcher));
+		ServerLivingEntityEvents.ALLOW_DAMAGE.register(AimTrainer::allowDamage);
 		ServerLivingEntityEvents.AFTER_DAMAGE.register(ScathfirePvp::afterDamage);
+		ServerTickEvents.END_SERVER_TICK.register(ScathfirePvp::tick);
 		ServerLivingEntityEvents.AFTER_DEATH.register(ScathfirePvp::afterDeath);
 		ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> server.execute(() -> onJoin(server, handler.player)));
-		ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> endSession(handler.player.getUUID()));
+		ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> {
+			endSession(handler.player.getUUID());
+			AimTrainer.stop(server, handler.player, false);
+		});
 		LOGGER.info("Scathfire's PvP Training loaded");
 	}
 
@@ -80,11 +130,72 @@ public class ScathfirePvp implements ModInitializer {
 				.then(Commands.argument("name", StringArgumentType.word())
 					.executes(ctx -> drill(ctx, StringArgumentType.getString(ctx, "name")))))
 			.then(Commands.literal("stop").executes(ScathfirePvp::stop))
-			.then(Commands.literal("hub").executes(ctx -> {
+			.then(Commands.literal("go")
+				.then(Commands.argument("zone", StringArgumentType.word())
+					.executes(ctx -> go(ctx, StringArgumentType.getString(ctx, "zone")))))
+			.then(Commands.literal("aim")
+				.then(Commands.argument("speed", StringArgumentType.word())
+					.executes(ctx -> aim(ctx, StringArgumentType.getString(ctx, "speed")))))
+			.then(Commands.literal("rebuild").executes(ctx -> {
 				ServerPlayer player = ctx.getSource().getPlayerOrException();
-				buildHub(ctx.getSource().getServer(), player, true);
+				if (!isPvpWorld(ctx.getSource().getServer())) {
+					say(player, "Rebuilding only works in the PvP World.", ChatFormatting.YELLOW);
+					return 0;
+				}
+				WorldBuilder.buildAll(player);
 				return 1;
 			})));
+	}
+
+	private static int go(CommandContext<CommandSourceStack> ctx, String zoneId) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+		ServerPlayer player = ctx.getSource().getPlayerOrException();
+		MinecraftServer server = ctx.getSource().getServer();
+		if (!isPvpWorld(server)) {
+			say(player, "The arenas are in the PvP World. Click PvP World on the title screen.", ChatFormatting.YELLOW);
+			return 0;
+		}
+		if ("hub".equals(zoneId)) {
+			teleport(player, 0.5, Zones.FLOOR + 1, 6.5, 180f);
+			return 1;
+		}
+		Zones.Zone zone = Zones.zone(zoneId);
+		if (zone == null) {
+			say(player, "Unknown arena.", ChatFormatting.RED);
+			return 0;
+		}
+		teleport(player, zone.x() + 0.5, Zones.FLOOR + 1, zone.padZ() + 0.5, 180f);
+		say(player, zone.title() + ": " + zone.subtitle() + ". Press a button to start.", ChatFormatting.AQUA);
+		return 1;
+	}
+
+	private static int aim(CommandContext<CommandSourceStack> ctx, String speed) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+		ServerPlayer player = ctx.getSource().getPlayerOrException();
+		MinecraftServer server = ctx.getSource().getServer();
+		if (!AimTrainer.validSpeed(speed)) {
+			say(player, "Speeds are easy, medium and pro.", ChatFormatting.RED);
+			return 0;
+		}
+		if (!carpetInstalled()) {
+			say(player, "The Aim Trainer bot needs the bot engine (Carpet PvP).", ChatFormatting.RED);
+			return 0;
+		}
+		if (!isPvpWorld(server) || !WorldBuilder.built(server)) {
+			say(player, "The Aim Trainer runs in the PvP World.", ChatFormatting.YELLOW);
+			return 0;
+		}
+		stopEverything(server, player);
+		AimTrainer.start(server, player, speed);
+		return 1;
+	}
+
+	/** Ends any fight, practice dummy or aim session the player has going. */
+	private static void stopEverything(MinecraftServer server, ServerPlayer player) {
+		if (SESSIONS.containsKey(player.getUUID())) {
+			endSession(player.getUUID());
+			if (carpetInstalled()) runAs(server, player, "auto-setup stop");
+		}
+		removeDummy(server, player);
+		AimTrainer.stop(server, player, false);
 	}
 
 	private static int help(CommandContext<CommandSourceStack> ctx) {
@@ -117,9 +228,16 @@ public class ScathfirePvp implements ModInitializer {
 		session.rounds = rounds;
 		session.startedAt = System.currentTimeMillis();
 		SESSIONS.put(player.getUUID(), session);
+		AimTrainer.stop(server, player, false);
 		say(player, "Setting up " + mode.name() + " vs a " + level.name() + " bot, " + Modes.roundsLabel(rounds)
 			+ ". Press P and choose Stop fight to end it.", ChatFormatting.AQUA);
-		return runAs(server, player, "auto-setup " + mode.engine() + " " + level.engine());
+		String command = "auto-setup " + mode.engine() + " " + level.engine();
+		if (sendToZone(server, player, Zones.forMode(mode.id()))) {
+			later(10, () -> runAs(server, player, command));
+		} else {
+			runAs(server, player, command);
+		}
+		return 1;
 	}
 
 	private static int practice(CommandContext<CommandSourceStack> ctx, String modeId) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
@@ -139,8 +257,13 @@ public class ScathfirePvp implements ModInitializer {
 			runAs(server, player, "auto-setup stop");
 		}
 		removeDummy(server, player);
-		runAs(server, player, "bot kit give @s " + mode.kit());
-		runAs(server, player, "player " + DUMMY + " spawn");
+		AimTrainer.stop(server, player, false);
+		boolean moved = sendToZone(server, player, Zones.zone("practice"));
+		Runnable give = () -> {
+			runAs(server, player, "bot kit give @s " + mode.kit());
+			runAs(server, player, "player " + DUMMY + " spawn at ~ ~ ~-6 facing 0 0");
+		};
+		if (moved) later(10, give); else give.run();
 		PRACTICING.add(player.getUUID());
 		say(player, "Free Practice: you have the " + mode.name() + " kit and a training dummy that doesn't hit back. Run /spt practice "
 			+ mode.id() + " again for a fresh kit and dummy.", ChatFormatting.AQUA);
@@ -164,7 +287,12 @@ public class ScathfirePvp implements ModInitializer {
 			say(player, "The bot engine (Carpet PvP) isn't installed, and the drills need it.", ChatFormatting.RED);
 			return 0;
 		}
-		return runAs(ctx.getSource().getServer(), player, "bot drill " + drill.engine());
+		MinecraftServer server = ctx.getSource().getServer();
+		stopEverything(server, player);
+		String command = "bot drill " + drill.engine();
+		if (sendToZone(server, player, Zones.zone(drill.id()))) later(10, () -> runAs(server, player, command));
+		else runAs(server, player, command);
+		return 1;
 	}
 
 	private static int stop(CommandContext<CommandSourceStack> ctx) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
@@ -172,6 +300,7 @@ public class ScathfirePvp implements ModInitializer {
 		boolean hadFight = SESSIONS.containsKey(player.getUUID());
 		endSession(player.getUUID());
 		removeDummy(ctx.getSource().getServer(), player);
+		AimTrainer.stop(ctx.getSource().getServer(), player, false);
 		if (carpetInstalled()) {
 			runAs(ctx.getSource().getServer(), player, "bot drill stop");
 			if (hadFight) runAs(ctx.getSource().getServer(), player, "auto-setup stop");
@@ -320,46 +449,13 @@ public class ScathfirePvp implements ModInitializer {
 
 	private static void onJoin(MinecraftServer server, ServerPlayer player) {
 		if (!isPvpWorld(server)) return;
-		buildHub(server, player, false);
-		say(player, "Welcome to the PvP World, " + player.getName().getString() + "! Press P to open the training menu.", ChatFormatting.AQUA);
+		say(player, "Welcome to the PvP World, " + player.getName().getString() + "! Press P any time for the training menu.", ChatFormatting.AQUA);
 		if (!carpetInstalled()) {
 			say(player, "Heads up: the bot engine (Carpet PvP for 26.3) isn't installed, so bots and drills won't start.", ChatFormatting.YELLOW);
 		}
-	}
-
-	/** A navy grid-paper floor around the player, built once per world unless forced. */
-	private static void buildHub(MinecraftServer server, ServerPlayer player, boolean force) {
-		Path marker = server.getWorldPath(LevelResource.ROOT).resolve(HUB_MARKER);
-		if (!force && Files.exists(marker)) return;
-		if (!(player.level() instanceof ServerLevel level)) return;
-
-		BlockPos center = player.blockPosition().below();
-		int r = 15;
-		BlockState navy = Blocks.CONCRETE.blue().defaultBlockState();
-		BlockState line = Blocks.CONCRETE.lightBlue().defaultBlockState();
-		BlockState margin = Blocks.CONCRETE.red().defaultBlockState();
-		BlockState edge = Blocks.STAINED_GLASS.lightBlue().defaultBlockState();
-		BlockState air = Blocks.AIR.defaultBlockState();
-
-		for (int dx = -r; dx <= r; dx++) {
-			for (int dz = -r; dz <= r; dz++) {
-				BlockPos floor = center.offset(dx, 0, dz);
-				BlockState state = navy;
-				if (dx == -r + 3) state = margin;
-				else if (Math.floorMod(dx, 5) == 0 || Math.floorMod(dz, 5) == 0) state = line;
-				level.setBlockAndUpdate(floor, state);
-				for (int dy = 1; dy <= 4; dy++) {
-					level.setBlockAndUpdate(floor.above(dy), air);
-				}
-				if (Math.abs(dx) == r || Math.abs(dz) == r) {
-					level.setBlockAndUpdate(floor.above(), edge);
-				}
-			}
-		}
-		try {
-			Files.writeString(marker, "hub built\n");
-		} catch (Exception e) {
-			LOGGER.warn("Could not write hub marker", e);
+		if (!WorldBuilder.built(server) && !WorldBuilder.building()) {
+			WorldBuilder.buildAll(player);
 		}
 	}
+
 }

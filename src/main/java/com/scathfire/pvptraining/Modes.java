@@ -50,7 +50,6 @@ public final class Modes {
 	);
 
 	public static final List<Drill> DRILLS = List.of(
-		new Drill("aim", "Aim", "Keep your crosshair on a strafing target.", "aim"),
 		new Drill("crystaltiming", "Crystal timing", "Place and break crystals as fast as you can.", "crystaltiming"),
 		new Drill("retotem", "Re-totem", "Put a new totem in your offhand after every pop.", "retotem"),
 		new Drill("stunslam", "Stun slam", "Axe the shield, then land the mace smash.", "stunslam"),
