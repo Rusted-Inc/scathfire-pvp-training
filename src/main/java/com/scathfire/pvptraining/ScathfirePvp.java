@@ -335,10 +335,10 @@ public class ScathfirePvp implements ModInitializer {
 
 		BlockPos center = player.blockPosition().below();
 		int r = 15;
-		BlockState navy = Blocks.BLUE_CONCRETE.defaultBlockState();
-		BlockState line = Blocks.LIGHT_BLUE_CONCRETE.defaultBlockState();
-		BlockState margin = Blocks.RED_CONCRETE.defaultBlockState();
-		BlockState edge = Blocks.LIGHT_BLUE_STAINED_GLASS.defaultBlockState();
+		BlockState navy = Blocks.CONCRETE.blue().defaultBlockState();
+		BlockState line = Blocks.CONCRETE.lightBlue().defaultBlockState();
+		BlockState margin = Blocks.CONCRETE.red().defaultBlockState();
+		BlockState edge = Blocks.STAINED_GLASS.lightBlue().defaultBlockState();
 		BlockState air = Blocks.AIR.defaultBlockState();
 
 		for (int dx = -r; dx <= r; dx++) {
