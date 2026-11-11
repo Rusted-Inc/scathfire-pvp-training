@@ -15,6 +15,7 @@ public class CoachSettingsScreen extends BaseScreen {
 	private EditBox key;
 	private EditBox model;
 	private SButton introToggle;
+	private SButton perfToggle;
 
 	public CoachSettingsScreen(Screen parent) {
 		super("Coach settings", parent);
@@ -45,6 +46,13 @@ public class CoachSettingsScreen extends BaseScreen {
 		});
 		addRenderableWidget(introToggle);
 
+		perfToggle = new SButton(x + 166, y + 72, 200, 20, perfLabel(cfg.performanceMode), SButton.Style.NORMAL, 350, () -> {
+			cfg.performanceMode = !cfg.performanceMode;
+			cfg.save();
+			perfToggle.setMessage(Component.literal(perfLabel(cfg.performanceMode)));
+		});
+		addRenderableWidget(perfToggle);
+
 		int by = height - 28;
 		addRenderableWidget(new SButton(x, by, 70, 20, "Back", SButton.Style.NORMAL, 400, this::back));
 		addRenderableWidget(new SButton(right() - 80, by, 80, 20, "Save", SButton.Style.HERO, 450, () -> {
@@ -55,13 +63,17 @@ public class CoachSettingsScreen extends BaseScreen {
 		}));
 	}
 
+	private static String perfLabel(boolean on) {
+		return "Performance mode in PvP World: " + (on ? "on" : "off");
+	}
+
 	private static String introLabel(boolean on) {
 		return "Intro animation: " + (on ? "on" : "off");
 	}
 
 	@Override
 	protected void drawContent(GuiGraphicsExtractor g, int mouseX, int mouseY, float delta) {
-		header(g, "optional, for smarter tips", "Coach settings");
+		header(g, "coach key, intro and performance", "Settings");
 		int x = left();
 		int y = contentTop() + 20;
 		Theme.text(g, font, "OpenRouter key (free at openrouter.ai/keys). Stays on this computer.", x, y - 11, 0.8f, Theme.MUTED, false);

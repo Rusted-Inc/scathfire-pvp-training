@@ -10,9 +10,11 @@ A Fabric mod for **Minecraft Java 26.3** (Fabric Loader 0.20.x, Fabric API 0.165
   - `bot kit give @s <kit>`, and `player <name> spawn|kill|move|look|jump|sprint`
   - Carpet's auto-setup builds its own 17×17 arena about 20 blocks in front of the player.
 - **Our server commands are `/spt ...`**, in `src/main/java/.../ScathfirePvp.java`. They cover `fight`, `practice`, `drill`, `aim`, `go`, `stop` and `rebuild`. The menus and the world's command blocks call these.
-- **The pre-made PvP World** is built by `WorldBuilder` using `fill`/`setblock`/`summon` commands, one area per server tick. The areas are listed in `Zones`. The hub is at 0,0. The fight row has its spawn pads at z=-60, and the drill row at z=110. Zones face north. A marker file `scathfirepvp-world-v2.txt` in the world folder means the world is already built.
+- **The pre-made PvP World** is built by `WorldBuilder` using `fill`/`setblock`/`summon` commands, one area every 10 server ticks. The areas are listed in `Zones`. The hub is at 0,0. The fight row has its spawn pads at z=-60, and the drill row at z=100. Zones face north. A marker file `scathfirepvp-world-v3.txt` in the world folder means the world is already built.
 - **The Aim Trainer** (`AimTrainer`) steers a Carpet fake player called `AimBot` with `/player` commands and cancels all damage to it. It sends hidden chat lines starting with `[scathfirepvp:aim]` that the client reads for its HUD (`AimHud`) and results screen.
 - **Match end and results:** when a best-of match ends, the server sends the hidden line `[scathfirepvp:match-over]` and the client opens `ResultsScreen`.
+- **Map look (v0.1.2 map revamp):** each zone has a `Look` (Classic, End, Deep Dark, Mossy, Desert, Yard, Range) with its own palette. Decorations stay in the side strips more than 12 blocks from the centre, or past the far end, so Carpet's arena has room. Hub gates have armor stands wearing each kit, the way practice servers show their kits.
+- **Performance mode (client, `Performance`):** in the PvP World it lowers render distance to 8 and simulation distance to 6 and turns off entity shadows, then restores the player's settings when they leave. The server triggers it with the hidden line `[scathfirepvp:pvp-world]`.
 - **Stats:** saved in `config/scathfirepvp-stats.json` (`Stats`). Client settings are in `config/scathfirepvp.json` (`Config`).
 
 ## The client side (`src/client`)

@@ -52,6 +52,8 @@ public class ScathfirePvp implements ModInitializer {
 	private static final Set<UUID> PRACTICING = new HashSet<>();
 	/** A hidden chat line that tells the menus a match just ended, so they show the results. */
 	public static final String MATCH_OVER = "[scathfirepvp:match-over]";
+	/** Hidden line telling the client it joined the PvP World, so it can switch on performance mode. */
+	public static final String IN_PVP_WORLD = "[scathfirepvp:pvp-world]";
 	private static final String DUMMY = "Dummy";
 
 	private record Later(int atTick, Runnable task) {}
@@ -155,7 +157,7 @@ public class ScathfirePvp implements ModInitializer {
 			return 0;
 		}
 		if ("hub".equals(zoneId)) {
-			teleport(player, 0.5, Zones.FLOOR + 1, 6.5, 180f);
+			teleport(player, 0.5, Zones.FLOOR + 1, 0.5, 180f);
 			return 1;
 		}
 		Zones.Zone zone = Zones.zone(zoneId);
@@ -449,6 +451,7 @@ public class ScathfirePvp implements ModInitializer {
 
 	private static void onJoin(MinecraftServer server, ServerPlayer player) {
 		if (!isPvpWorld(server)) return;
+		player.sendSystemMessage(Component.literal(IN_PVP_WORLD));
 		say(player, "Welcome to the PvP World, " + player.getName().getString() + "! Press P any time for the training menu.", ChatFormatting.AQUA);
 		if (!carpetInstalled()) {
 			say(player, "Heads up: the bot engine (Carpet PvP for 26.3) isn't installed, so bots and drills won't start.", ChatFormatting.YELLOW);

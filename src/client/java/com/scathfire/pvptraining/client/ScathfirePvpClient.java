@@ -72,6 +72,10 @@ public class ScathfirePvpClient implements ClientModInitializer {
 				resultsDelay = 40;
 				return false;
 			}
+			if (ScathfirePvp.IN_PVP_WORLD.equals(text)) {
+				runAfterTick(() -> Performance.enterPvpWorld(Minecraft.getInstance()));
+				return false;
+			}
 			if (text.startsWith(AimTrainer.MARK)) {
 				aimMessage(text.substring(AimTrainer.MARK.length()));
 				return false;
@@ -81,6 +85,11 @@ public class ScathfirePvpClient implements ClientModInitializer {
 
 		HudElementRegistry.attachElementAfter(VanillaHudElements.MISC_OVERLAYS,
 			Identifier.fromNamespaceAndPath(ScathfirePvp.MOD_ID, "aim_trainer"), AimHud::draw);
+
+		ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> client.execute(() -> {
+			Performance.leave(client);
+			AimHud.cancel();
+		}));
 
 		ClientTickEvents.END_CLIENT_TICK.register(ScathfirePvpClient::tick);
 	}

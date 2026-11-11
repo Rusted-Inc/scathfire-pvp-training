@@ -62,7 +62,7 @@ public final class AimTrainer {
 		s.player = player.getUUID();
 		s.speed = speed;
 		s.centerX = zone.x() + 0.5;
-		s.centerZ = zone.padZ() - 10.5;
+		s.centerZ = zone.padZ() - 7.5;
 
 		ScathfirePvp.teleport(player, zone.x() + 0.5, Zones.FLOOR + 1, zone.padZ() + 0.5, 180f);
 		run(server, String.format(Locale.ROOT, "player %s spawn at %.1f %d %.1f facing 0 0", BOT, s.centerX, Zones.FLOOR + 1, s.centerZ));
@@ -90,7 +90,8 @@ public final class AimTrainer {
 
 	/** Counts hits on the bot and cancels all damage to it. Returns false to cancel. */
 	public static boolean allowDamage(LivingEntity entity, DamageSource source, float amount) {
-		if (!(entity instanceof ServerPlayer bot) || !BOT.equals(bot.getName().getString())) return true;
+		// Carpet names the bot "Aimbot", so compare without caring about capitals.
+		if (!(entity instanceof ServerPlayer bot) || !BOT.equalsIgnoreCase(bot.getName().getString())) return true;
 		Entity attacker = source.getEntity();
 		if (attacker instanceof ServerPlayer player) {
 			Session s = SESSIONS.get(player.getUUID());
@@ -133,25 +134,28 @@ public final class AimTrainer {
 		}
 	}
 
-	/** Picks the next move like a strafing player, steering back toward the middle when it drifts. */
+	/**
+	 * Picks the next move like a strafing opponent: mostly left and right, backing off when it gets
+	 * closer than 3.5 blocks, closing in past 8, and steering back to the middle when it drifts.
+	 */
 	private static void move(MinecraftServer server, Session s, ServerPlayer bot) {
-		double dx = s.centerX - bot.getX();
-		double dz = s.centerZ - bot.getZ();
+		ServerPlayer player = server.getPlayerList().getPlayer(s.player);
 		double yaw = Math.toRadians(bot.getYRot());
 		double leftX = Math.cos(yaw);
 		double leftZ = Math.sin(yaw);
-		double fwdX = -Math.sin(yaw);
-		double fwdZ = Math.cos(yaw);
-		boolean far = dx * dx + dz * dz > 36;
+		double dx = s.centerX - bot.getX();
+		double dz = s.centerZ - bot.getZ();
+		double toPlayer = player == null ? 6 : Math.sqrt(bot.distanceToSqr(player));
 
 		String dir;
-		if (far) {
-			double side = dx * leftX + dz * leftZ;
-			double ahead = dx * fwdX + dz * fwdZ;
-			dir = Math.abs(side) > Math.abs(ahead) ? (side > 0 ? "left" : "right") : (ahead > 0 ? "forward" : "backward");
+		if (toPlayer < 3.5) {
+			dir = "backward";
+		} else if (toPlayer > 8) {
+			dir = "forward";
+		} else if (dx * dx + dz * dz > 49) {
+			dir = (dx * leftX + dz * leftZ) > 0 ? "left" : "right";
 		} else {
-			float roll = RANDOM.nextFloat();
-			dir = roll < 0.4f ? "left" : roll < 0.8f ? "right" : roll < 0.9f ? "forward" : "backward";
+			dir = RANDOM.nextBoolean() ? "left" : "right";
 		}
 		run(server, "player " + BOT + " move " + dir);
 		run(server, "player " + BOT + (RANDOM.nextFloat() < s.speed.sprint() ? " sprint" : " unsprint"));

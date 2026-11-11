@@ -22,6 +22,8 @@ public final class Config {
 	public String openRouterKey = "";
 	/** The OpenRouter model the coach asks. Free models end in :free. */
 	public String coachModel = "meta-llama/llama-3.3-70b-instruct:free";
+	/** In the PvP World, lower render distance and other heavy settings, and put them back after. */
+	public boolean performanceMode = true;
 	/** Best Aim Trainer hits for each speed. */
 	public java.util.Map<String, Integer> aimBest = new java.util.HashMap<>();
 
