@@ -32,6 +32,12 @@ public class ScathfirePvpClient implements ClientModInitializer {
 	private static int menuDelay = -1;
 	private static int resultsDelay = -1;
 	private static KeyMapping menuKey;
+	private static Runnable afterTick;
+
+	/** Runs at the end of this client tick, outside any screen's own tick. */
+	public static void runAfterTick(Runnable task) {
+		afterTick = task;
+	}
 
 	@Override
 	public void onInitializeClient() {
@@ -68,6 +74,11 @@ public class ScathfirePvpClient implements ClientModInitializer {
 	}
 
 	private static void tick(Minecraft client) {
+		if (afterTick != null) {
+			Runnable task = afterTick;
+			afterTick = null;
+			task.run();
+		}
 		if (introPending) {
 			introPending = false;
 			client.gui.setScreen(new IntroScreen());

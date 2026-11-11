@@ -7,6 +7,7 @@ import net.minecraft.client.gui.screens.TitleScreen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.Util;
 
+import com.scathfire.pvptraining.client.ScathfirePvpClient;
 import com.scathfire.pvptraining.client.ui.SButton;
 import com.scathfire.pvptraining.client.ui.Theme;
 
@@ -38,7 +39,7 @@ public class IntroScreen extends Screen {
 
 	@Override
 	public void tick() {
-		if (Util.getMillis() - start > LOADING + INTRO) finish();
+		if (Util.getMillis() - start > LOADING + INTRO) ScathfirePvpClient.runAfterTick(this::finish);
 	}
 
 	@Override

@@ -4,6 +4,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.Screen;
 
+import com.scathfire.pvptraining.client.ScathfirePvpClient;
 import com.scathfire.pvptraining.client.WorldLauncher;
 import com.scathfire.pvptraining.client.ui.BaseScreen;
 import com.scathfire.pvptraining.client.ui.Theme;
@@ -20,7 +21,8 @@ public class EnteringScreen extends BaseScreen {
 	public void tick() {
 		if (!launched && elapsed() > 1300) {
 			launched = true;
-			WorldLauncher.launch(Minecraft.getInstance(), parent);
+			// Switching screens inside a screen's own tick crashes Fabric's screen events, so do it after the tick.
+			ScathfirePvpClient.runAfterTick(() -> WorldLauncher.launch(Minecraft.getInstance(), parent));
 		}
 	}
 
