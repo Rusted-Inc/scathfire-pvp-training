@@ -10,9 +10,15 @@ public final class Modes {
 	private Modes() {}
 
 	/** A fight mode. {@code engine} is the Carpet PvP auto-setup mode, or null while it is coming soon. */
-	public record Mode(String id, String name, String skills, String tag, String engine) {
+	public record Mode(String id, String name, String skills, String tag, String engine, String kit) {
+		/** A bot can fight this mode. */
 		public boolean ready() {
 			return engine != null;
+		}
+
+		/** Free Practice can hand out this mode's kit. */
+		public boolean practiceReady() {
+			return kit != null;
 		}
 	}
 
@@ -23,16 +29,16 @@ public final class Modes {
 	public record Drill(String id, String name, String about, String engine) {}
 
 	public static final List<Mode> MODES = List.of(
-		new Mode("sword", "Sword", "Crits, W-tap, strafing, hit select", "best first mode", "sword"),
-		new Mode("crystal", "Crystal", "Hit crystal, anchors, totems", "hardest", "crystal"),
-		new Mode("mace", "Mace", "Smash timing, breach swap, stun slam", "trending", "mace"),
-		new Mode("smp", "SMP", "Netherite, shield, pearls, no crystals", "real fights", "smp"),
-		new Mode("ranged", "Ranged", "Bow pressure, leading your shots", "aim check", "ranged"),
-		new Mode("axe", "Axe + Shield", "Shield timing, disabling shields", "coming soon", null),
-		new Mode("nethpot", "Neth Pot", "Pot timing, spacing, pressure", "coming soon", null),
-		new Mode("uhc", "UHC", "No regen, bow, rod, buckets", "coming soon", null),
-		new Mode("cart", "Cart", "Insta-cart, crossbow cart, overload", "coming soon", null),
-		new Mode("spear", "Spear", "Jab spacing, charge, Lunge", "coming soon", null)
+		new Mode("sword", "Sword", "Crits, W-tap, strafing, hit select", "best first mode", "sword", "sword"),
+		new Mode("crystal", "Crystal", "Hit crystal, anchors, totems", "hardest", "crystal", "crystal"),
+		new Mode("mace", "Mace", "Smash timing, breach swap, stun slam", "trending", "mace", "mace"),
+		new Mode("smp", "SMP", "Netherite, shield, pearls, no crystals", "real fights", "smp", "smp"),
+		new Mode("ranged", "Ranged", "Bow pressure, leading your shots", "aim check", "ranged", "ranged"),
+		new Mode("axe", "Axe + Shield", "Shield timing, disabling shields", "coming soon", null, "axe"),
+		new Mode("nethpot", "Neth Pot", "Pot timing, spacing, pressure", "coming soon", null, null),
+		new Mode("uhc", "UHC", "No regen, bow, rod, buckets", "coming soon", null, null),
+		new Mode("cart", "Cart", "Insta-cart, crossbow cart, overload", "coming soon", null, null),
+		new Mode("spear", "Spear", "Jab spacing, charge, Lunge", "coming soon", null, null)
 	);
 
 	public static final List<Level> LEVELS = List.of(
@@ -50,6 +56,13 @@ public final class Modes {
 		new Drill("stunslam", "Stun slam", "Axe the shield, then land the mace smash.", "stunslam"),
 		new Drill("pearlcatch", "Pearl catch", "Throw a pearl and catch it with a wind charge.", "pearlcatch")
 	);
+
+	/** Rounds: 0 is endless, otherwise best of that many. */
+	public static final int[] ROUNDS = {0, 3, 5};
+
+	public static String roundsLabel(int rounds) {
+		return rounds <= 0 ? "Endless" : "Best of " + rounds;
+	}
 
 	public static Mode mode(String id) {
 		for (Mode m : MODES) if (m.id().equals(id)) return m;

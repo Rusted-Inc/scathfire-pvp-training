@@ -14,6 +14,8 @@ import com.scathfire.pvptraining.client.ui.Theme;
 /** Pick a level, see what the bot can do, then start the fight. */
 public class LevelScreen extends BaseScreen {
 	private static String picked = "hard";
+	private static int rounds = 3;
+	private final List<SButton> roundButtons = new ArrayList<>();
 	private final Modes.Mode mode;
 	private final List<SButton> buttons = new ArrayList<>();
 	private int panelX;
@@ -30,6 +32,7 @@ public class LevelScreen extends BaseScreen {
 	protected void init() {
 		super.init();
 		buttons.clear();
+		roundButtons.clear();
 		int x = left();
 		int top = contentTop() + 6;
 		int listW = Math.min(150, (right() - x) / 3);
@@ -51,10 +54,25 @@ public class LevelScreen extends BaseScreen {
 		panelW = right() - panelX;
 		panelH = 5 * (rowH + 4) - 4;
 
+		int pillY = panelY + panelH - 24;
+		int pillX = panelX + 52;
+		for (int i = 0; i < Modes.ROUNDS.length; i++) {
+			int value = Modes.ROUNDS[i];
+			SButton pill = new SButton(pillX + i * 62, pillY, 58, 16, Modes.roundsLabel(value),
+				value == rounds ? SButton.Style.SELECTED : SButton.Style.NORMAL, 650 + i * 60L, () -> {
+					rounds = value;
+					for (int j = 0; j < roundButtons.size(); j++) {
+						roundButtons.get(j).setStyle(Modes.ROUNDS[j] == rounds ? SButton.Style.SELECTED : SButton.Style.NORMAL);
+					}
+				});
+			roundButtons.add(pill);
+			addRenderableWidget(pill);
+		}
+
 		int by = height - 28;
 		addRenderableWidget(new SButton(x, by, 70, 20, "Back", SButton.Style.NORMAL, 800, this::back));
 		addRenderableWidget(new SButton(right() - 110, by, 110, 20, "Start fight", SButton.Style.FIRE, 850,
-			() -> runAndClose("spt fight " + mode.id() + " " + picked)));
+			() -> runAndClose("spt fight " + mode.id() + " " + picked + " " + rounds)));
 	}
 
 	@Override
@@ -72,7 +90,7 @@ public class LevelScreen extends BaseScreen {
 			{"Reaction", level.reaction()},
 			{"Aim", level.aim()},
 			{"Moves", level.moves()},
-			{"Rounds", "Endless, with a rematch each round"}
+			{"Arena", "Built next to you, cleared after"}
 		};
 		int colW = (panelW - 20) / 2;
 		for (int i = 0; i < rows.length; i++) {
@@ -84,11 +102,8 @@ public class LevelScreen extends BaseScreen {
 				ry += 10;
 			}
 		}
-		String tip = "Press P during the fight and choose Stop fight to end it. Your items come back.";
-		int ty = panelY + panelH - 22;
-		for (String line : Theme.wrap(font, tip, panelW - 20, 0.75f)) {
-			Theme.text(g, font, line, px, ty, 0.75f, Theme.withAlpha(Theme.MUTED, a), false);
-			ty += 8;
-		}
+		Theme.text(g, font, "Rounds", px, panelY + panelH - 20, 0.9f, Theme.withAlpha(Theme.MUTED, a), false);
+		String tip = "Press P during the fight and choose Stop fight to end it early.";
+		Theme.text(g, font, tip, px, panelY + panelH - 36, 0.75f, Theme.withAlpha(Theme.MUTED, a), false);
 	}
 }

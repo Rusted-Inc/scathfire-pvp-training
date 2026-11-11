@@ -42,12 +42,17 @@ public final class Stats {
 		public int blocked;
 		public long startedAt;
 		public long endedAt;
+		/** 0 is endless, otherwise best of this many. */
+		public int rounds;
+		/** "win", "loss" or "" while the match is still going or was stopped. */
+		public String result = "";
 	}
 
 	public static final class Data {
 		public Map<String, ModeStats> modes = new LinkedHashMap<>();
 		public Session last = new Session();
 		public Map<String, Integer> highestBeaten = new LinkedHashMap<>();
+		public int matchWins;
 
 		public int totalWins() {
 			int n = 0;

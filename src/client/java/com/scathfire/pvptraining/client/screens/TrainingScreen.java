@@ -29,12 +29,11 @@ public class TrainingScreen extends BaseScreen {
 		int y = contentTop() + 16;
 
 		SButton bot = new SButton(x, y, cardW, cardH, "Fight a Bot", SButton.Style.NORMAL, 300,
-			() -> go(new ModesScreen(this))).card("1v1 against an AI bot. Pick a mode and a level, then fight round after round.", "most popular");
+			() -> go(new ModesScreen(this, false))).card("1v1 against an AI bot. Pick a mode and a level, then fight round after round.", "most popular");
 		SButton drills = new SButton(x + cardW + gap, y, cardW, cardH, "Drills", SButton.Style.NORMAL, 390,
 			() -> go(new DrillsScreen(this))).card("No fighting. Train aim, crystal speed, re-totems, stun slams and pearl catches.", "beat your best");
-		SButton free = new SButton(x + (cardW + gap) * 2, y, cardW, cardH, "Free Practice", SButton.Style.SOON, 480,
-			() -> {}).card("Any arena, endless kit refills and dummies. No score.", "coming soon");
-		free.active = false;
+		SButton free = new SButton(x + (cardW + gap) * 2, y, cardW, cardH, "Free Practice", SButton.Style.NORMAL, 480,
+			() -> go(new ModesScreen(this, true))).card("Get a mode's kit and a dummy that takes hits but never fights back. No score.", "just vibes");
 		addRenderableWidget(bot);
 		addRenderableWidget(drills);
 		addRenderableWidget(free);

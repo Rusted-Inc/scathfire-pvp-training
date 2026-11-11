@@ -11,6 +11,7 @@ import net.minecraft.resources.Identifier;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
+import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
 import net.fabricmc.fabric.api.client.screen.v1.Screens;
@@ -18,6 +19,7 @@ import net.fabricmc.fabric.api.client.screen.v1.Screens;
 import com.scathfire.pvptraining.ScathfirePvp;
 import com.scathfire.pvptraining.client.screens.EnteringScreen;
 import com.scathfire.pvptraining.client.screens.IntroScreen;
+import com.scathfire.pvptraining.client.screens.ResultsScreen;
 import com.scathfire.pvptraining.client.screens.TrainingScreen;
 import com.scathfire.pvptraining.client.ui.SButton;
 
@@ -28,6 +30,7 @@ public class ScathfirePvpClient implements ClientModInitializer {
 	private static boolean introShown;
 	private static boolean introPending;
 	private static int menuDelay = -1;
+	private static int resultsDelay = -1;
 	private static KeyMapping menuKey;
 
 	@Override
@@ -53,6 +56,14 @@ public class ScathfirePvpClient implements ClientModInitializer {
 			}
 		});
 
+		ClientReceiveMessageEvents.ALLOW_GAME.register((message, overlay) -> {
+			if (ScathfirePvp.MATCH_OVER.equals(message.getString())) {
+				resultsDelay = 40;
+				return false;
+			}
+			return true;
+		});
+
 		ClientTickEvents.END_CLIENT_TICK.register(ScathfirePvpClient::tick);
 	}
 
@@ -65,6 +76,12 @@ public class ScathfirePvpClient implements ClientModInitializer {
 			menuDelay = -1;
 			if (client.player != null && client.gui.screen() == null) {
 				client.gui.setScreen(new TrainingScreen(null));
+			}
+		}
+		if (resultsDelay > 0 && --resultsDelay == 0) {
+			resultsDelay = -1;
+			if (client.player != null) {
+				client.gui.setScreen(new ResultsScreen(null));
 			}
 		}
 		while (menuKey.consumeClick()) {

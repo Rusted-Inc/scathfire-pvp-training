@@ -14,11 +14,18 @@ import com.scathfire.pvptraining.client.ui.Theme;
 /** Pick a mode: ten cards, five of them ready now. */
 public class ModesScreen extends BaseScreen {
 	private static String picked = "sword";
+	/** True for Free Practice, false for Fight a Bot. */
+	private final boolean practice;
 	private final List<SButton> cards = new ArrayList<>();
 	private final List<Modes.Mode> cardModes = new ArrayList<>();
 
-	public ModesScreen(Screen parent) {
+	public ModesScreen(Screen parent, boolean practice) {
 		super("Pick a mode", parent);
+		this.practice = practice;
+	}
+
+	private boolean usable(Modes.Mode mode) {
+		return practice ? mode.practiceReady() : mode.ready();
 	}
 
 	@Override
@@ -38,13 +45,14 @@ public class ModesScreen extends BaseScreen {
 			Modes.Mode mode = Modes.MODES.get(i);
 			int cx = x + (i % cols) * (cardW + gap);
 			int cy = top + (i / cols) * (cardH + gap);
+			String tag = usable(mode) ? (practice ? "kit + dummy" : mode.tag()) : "coming soon";
 			SButton card = new SButton(cx, cy, cardW, cardH, mode.name(), style(mode), 250 + i * 70L, () -> {
-				if (mode.ready()) {
+				if (usable(mode)) {
 					picked = mode.id();
 					refresh();
 				}
-			}).card(mode.skills(), mode.tag());
-			if (!mode.ready()) card.active = false;
+			}).card(mode.skills(), tag);
+			if (!usable(mode)) card.active = false;
 			cards.add(card);
 			cardModes.add(mode);
 			addRenderableWidget(card);
@@ -52,12 +60,19 @@ public class ModesScreen extends BaseScreen {
 
 		int by = height - 28;
 		addRenderableWidget(new SButton(x, by, 70, 20, "Back", SButton.Style.NORMAL, 900, this::back));
-		addRenderableWidget(new SButton(right() - 130, by, 130, 20, "Next: pick a level", SButton.Style.HERO, 950,
-			() -> go(new LevelScreen(this, Modes.mode(picked)))));
+		if (!usable(Modes.mode(picked))) picked = "sword";
+		refresh();
+		if (practice) {
+			addRenderableWidget(new SButton(right() - 130, by, 130, 20, "Start practice", SButton.Style.FIRE, 950,
+				() -> runAndClose("spt practice " + picked)));
+		} else {
+			addRenderableWidget(new SButton(right() - 130, by, 130, 20, "Next: pick a level", SButton.Style.HERO, 950,
+				() -> go(new LevelScreen(this, Modes.mode(picked)))));
+		}
 	}
 
 	private SButton.Style style(Modes.Mode mode) {
-		if (!mode.ready()) return SButton.Style.SOON;
+		if (!usable(mode)) return SButton.Style.SOON;
 		return mode.id().equals(picked) ? SButton.Style.SELECTED : SButton.Style.NORMAL;
 	}
 
@@ -67,7 +82,7 @@ public class ModesScreen extends BaseScreen {
 
 	@Override
 	protected void drawContent(GuiGraphicsExtractor g, int mouseX, int mouseY, float delta) {
-		header(g, "Fight a Bot / pick your weapon", "Pick a mode");
+		header(g, practice ? "Free Practice / a kit and a dummy, no score" : "Fight a Bot / pick your weapon", "Pick a mode");
 		Modes.Mode mode = Modes.mode(picked);
 		String sel = "Selected: " + (mode == null ? "" : mode.name());
 		Theme.centered(g, font, sel, width / 2f, height - 22, 1f, Theme.PEN, false);

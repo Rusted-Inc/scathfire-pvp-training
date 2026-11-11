@@ -3,10 +3,13 @@ package com.scathfire.pvptraining;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.Map;
 import java.util.UUID;
 
 import com.mojang.brigadier.CommandDispatcher;
+import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 import org.slf4j.Logger;
@@ -42,6 +45,11 @@ public class ScathfirePvp implements ModInitializer {
 
 	/** The fight each real player is in, by player id. */
 	private static final Map<UUID, Stats.Session> SESSIONS = new HashMap<>();
+	/** Players in Free Practice, who have a training dummy out. */
+	private static final Set<UUID> PRACTICING = new HashSet<>();
+	/** A hidden chat line that tells the menus a match just ended, so they show the results. */
+	public static final String MATCH_OVER = "[scathfirepvp:match-over]";
+	private static final String DUMMY = "Dummy";
 
 	@Override
 	public void onInitialize() {
@@ -61,7 +69,13 @@ public class ScathfirePvp implements ModInitializer {
 			.then(Commands.literal("fight")
 				.then(Commands.argument("mode", StringArgumentType.word())
 					.then(Commands.argument("level", StringArgumentType.word())
-						.executes(ctx -> fight(ctx, StringArgumentType.getString(ctx, "mode"), StringArgumentType.getString(ctx, "level"))))))
+						.executes(ctx -> fight(ctx, StringArgumentType.getString(ctx, "mode"), StringArgumentType.getString(ctx, "level"), 0))
+						.then(Commands.argument("rounds", IntegerArgumentType.integer(0, 9))
+							.executes(ctx -> fight(ctx, StringArgumentType.getString(ctx, "mode"), StringArgumentType.getString(ctx, "level"),
+								IntegerArgumentType.getInteger(ctx, "rounds")))))))
+			.then(Commands.literal("practice")
+				.then(Commands.argument("mode", StringArgumentType.word())
+					.executes(ctx -> practice(ctx, StringArgumentType.getString(ctx, "mode")))))
 			.then(Commands.literal("drill")
 				.then(Commands.argument("name", StringArgumentType.word())
 					.executes(ctx -> drill(ctx, StringArgumentType.getString(ctx, "name")))))
@@ -78,7 +92,7 @@ public class ScathfirePvp implements ModInitializer {
 		return 1;
 	}
 
-	private static int fight(CommandContext<CommandSourceStack> ctx, String modeId, String levelId) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+	private static int fight(CommandContext<CommandSourceStack> ctx, String modeId, String levelId, int rounds) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
 		ServerPlayer player = ctx.getSource().getPlayerOrException();
 		Modes.Mode mode = Modes.mode(modeId);
 		Modes.Level level = Modes.level(levelId);
@@ -94,14 +108,49 @@ public class ScathfirePvp implements ModInitializer {
 			say(player, "The bot engine (Carpet PvP) isn't installed. Put the Carpet PvP 26.3 jar in your mods folder.", ChatFormatting.RED);
 			return 0;
 		}
+		MinecraftServer server = ctx.getSource().getServer();
 		endSession(player.getUUID());
+		removeDummy(server, player);
 		Stats.Session session = new Stats.Session();
 		session.mode = mode.id();
 		session.level = level.id();
+		session.rounds = rounds;
 		session.startedAt = System.currentTimeMillis();
 		SESSIONS.put(player.getUUID(), session);
-		say(player, "Setting up " + mode.name() + " vs a " + level.name() + " bot. Press P and choose Stop fight to end it.", ChatFormatting.AQUA);
-		return runAs(ctx.getSource().getServer(), player, "auto-setup " + mode.engine() + " " + level.engine());
+		say(player, "Setting up " + mode.name() + " vs a " + level.name() + " bot, " + Modes.roundsLabel(rounds)
+			+ ". Press P and choose Stop fight to end it.", ChatFormatting.AQUA);
+		return runAs(server, player, "auto-setup " + mode.engine() + " " + level.engine());
+	}
+
+	private static int practice(CommandContext<CommandSourceStack> ctx, String modeId) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+		ServerPlayer player = ctx.getSource().getPlayerOrException();
+		MinecraftServer server = ctx.getSource().getServer();
+		Modes.Mode mode = Modes.mode(modeId);
+		if (mode == null || !mode.practiceReady()) {
+			say(player, "That mode isn't ready for Free Practice yet.", ChatFormatting.YELLOW);
+			return 0;
+		}
+		if (!carpetInstalled()) {
+			say(player, "Free Practice needs the bot engine (Carpet PvP) for the kit and the dummy.", ChatFormatting.RED);
+			return 0;
+		}
+		if (SESSIONS.containsKey(player.getUUID())) {
+			endSession(player.getUUID());
+			runAs(server, player, "auto-setup stop");
+		}
+		removeDummy(server, player);
+		runAs(server, player, "bot kit give @s " + mode.kit());
+		runAs(server, player, "player " + DUMMY + " spawn");
+		PRACTICING.add(player.getUUID());
+		say(player, "Free Practice: you have the " + mode.name() + " kit and a training dummy that doesn't hit back. Run /spt practice "
+			+ mode.id() + " again for a fresh kit and dummy.", ChatFormatting.AQUA);
+		return 1;
+	}
+
+	private static void removeDummy(MinecraftServer server, ServerPlayer player) {
+		if (PRACTICING.remove(player.getUUID()) && carpetInstalled()) {
+			runAs(server, player, "player " + DUMMY + " kill");
+		}
 	}
 
 	private static int drill(CommandContext<CommandSourceStack> ctx, String name) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
@@ -122,6 +171,7 @@ public class ScathfirePvp implements ModInitializer {
 		ServerPlayer player = ctx.getSource().getPlayerOrException();
 		boolean hadFight = SESSIONS.containsKey(player.getUUID());
 		endSession(player.getUUID());
+		removeDummy(ctx.getSource().getServer(), player);
 		if (carpetInstalled()) {
 			runAs(ctx.getSource().getServer(), player, "bot drill stop");
 			if (hadFight) runAs(ctx.getSource().getServer(), player, "auto-setup stop");
@@ -179,15 +229,40 @@ public class ScathfirePvp implements ModInitializer {
 			if (s != null) {
 				s.wins++;
 				record(s, true);
-				say(killer, "You won the round! Wins this session: " + s.wins, ChatFormatting.GREEN);
+				say(killer, "You won the round! Score " + s.wins + " - " + s.losses, ChatFormatting.GREEN);
+				checkMatchOver(killer, s);
 			}
 		} else if (entity instanceof ServerPlayer player && !isBot(player)) {
 			Stats.Session s = SESSIONS.get(player.getUUID());
 			if (s != null) {
 				s.losses++;
 				record(s, false);
+				say(player, "The bot took that round. Score " + s.wins + " - " + s.losses, ChatFormatting.YELLOW);
+				checkMatchOver(player, s);
 			}
 		}
+	}
+
+	/** In a best-of match, ends it once someone has won enough rounds. */
+	private static void checkMatchOver(ServerPlayer player, Stats.Session s) {
+		if (s.rounds <= 0) return;
+		int need = s.rounds / 2 + 1;
+		if (s.wins < need && s.losses < need) return;
+		s.result = s.wins >= need ? "win" : "loss";
+		MinecraftServer server = player.level().getServer();
+		server.execute(() -> {
+			if (SESSIONS.get(player.getUUID()) != s) return;
+			endSession(player.getUUID());
+			if ("win".equals(s.result)) {
+				Stats.Data data = Stats.load();
+				data.matchWins++;
+				Stats.save(data);
+			}
+			say(player, ("win".equals(s.result) ? "You won the match " : "The bot won the match ") + s.wins + " - " + s.losses + "!",
+				"win".equals(s.result) ? ChatFormatting.GREEN : ChatFormatting.RED);
+			if (carpetInstalled()) runAs(server, player, "auto-setup stop");
+			player.sendSystemMessage(Component.literal(MATCH_OVER));
+		});
 	}
 
 	private static void record(Stats.Session s, boolean won) {
@@ -231,6 +306,8 @@ public class ScathfirePvp implements ModInitializer {
 		c.damageTaken = s.damageTaken;
 		c.blocked = s.blocked;
 		c.startedAt = s.startedAt;
+		c.rounds = s.rounds;
+		c.result = s.result;
 		c.endedAt = System.currentTimeMillis();
 		return c;
 	}
