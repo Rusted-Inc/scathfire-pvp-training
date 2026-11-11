@@ -1,0 +1,27 @@
+{
+	"schemaVersion": 1,
+	"id": "scathfirepvp",
+	"version": "${version}",
+	"name": "Scathfire's PvP Training",
+	"description": "PvP training with AI bots, drills and a coach. Click PvP World on the title screen to start.",
+	"authors": ["Scathfire"],
+	"contact": {
+		"sources": "https://github.com/Rusted-Inc/scathfire-pvp-training"
+	},
+	"license": "MIT",
+	"icon": "assets/scathfirepvp/icon.png",
+	"environment": "*",
+	"entrypoints": {
+		"main": ["com.scathfire.pvptraining.ScathfirePvp"],
+		"client": ["com.scathfire.pvptraining.client.ScathfirePvpClient"]
+	},
+	"depends": {
+		"fabricloader": ">=0.20.0",
+		"minecraft": "~26.3",
+		"java": ">=25",
+		"fabric-api": "*"
+	},
+	"recommends": {
+		"carpet": "*"
+	}
+}

@@ -1,0 +1,48 @@
+name: build
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v6
+
+      - name: Set up Java 25
+        uses: actions/setup-java@v5
+        with:
+          java-version: '25'
+          distribution: 'microsoft'
+
+      - name: Build the mod
+        run: |
+          chmod +x ./gradlew
+          ./gradlew build --stacktrace
+
+      - name: Download Carpet PvP (the bot engine) for 26.3
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p download
+          gh release download -R AndrewCTF/Carpet-PvP --pattern 'carpet-pvp-26.3-[0-9]*.jar' -D download || echo "Carpet PvP download failed; get it from its Modrinth page"
+          ls -la download || true
+
+      - name: Put the install folder together
+        run: |
+          mkdir -p install/mods
+          cp build/libs/scathfire-pvp-training-*.jar install/mods/
+          rm -f install/mods/*-sources.jar
+          cp download/*.jar install/mods/ 2>/dev/null || true
+          cp INSTALL.md install/README.md
+
+      - name: Upload the mod files
+        uses: actions/upload-artifact@v7
+        with:
+          name: scathfire-pvp-training
+          path: install/
